@@ -48,11 +48,14 @@ async function runTestCase(name: string) {
     ...steps.env,
     // Indicate CLI is running in test mode
     VITE_PLUS_CLI_TEST: '1',
+    NO_COLOR: 'true',
+    // set CI=true make sure snap-tests are stable on GitHub Actions
+    CI: 'true',
   };
   env['PATH'] = [
-    ...env['PATH']!.split(path.delimiter),
     // Extend PATH to include the package's bin directory
-    path.resolve('bin')
+    path.resolve('bin'),
+    ...env['PATH']!.split(path.delimiter),
   ].join(path.delimiter);
 
   const newSnap: string[] = [];
@@ -85,6 +88,7 @@ async function runTestCase(name: string) {
 }
 
 function replaceUnstableOutput(output: string) {
-  return output.replace(/\d+(?:\.\d+)?s|\d+ms/, '<variable>ms')
-    .replace(/with \d+ rules using \d+ threads/, 'with <variable> rules using <variable> threads');
+  return output.replaceAll(/\d+(?:\.\d+)?s|\d+ms/g, '<variable>ms')
+    .replaceAll(/with \d+ rules/g, 'with <variable> rules')
+    .replaceAll(/using \d+ threads/g, 'using <variable> threads');
 }
