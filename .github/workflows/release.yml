@@ -78,7 +78,10 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: oxc-project/setup-node@f42e3bda950c7454575e78ee4eaac880a077700c # v1.0.0
+      - uses: oxc-project/setup-node@4c31090ef1282f7c654edf77357894fc80ef5236 # v1.0.2
+        with:
+          registry-url: "https://npm.pkg.github.com/"
+          scope: "@voidzero-dev"
 
       - name: Bootstrap
         run: pnpm bootstrap-cli:ci
