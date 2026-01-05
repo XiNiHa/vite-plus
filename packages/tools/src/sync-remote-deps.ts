@@ -391,6 +391,33 @@ function mergePackageExports(
     );
 }
 
+// Oxc-related packages that should use the higher version on conflict
+const OXC_PACKAGE_PREFIXES = [
+  '@oxc-project/',
+  '@oxlint/',
+  '@oxc-minify/',
+  '@oxc-parser/',
+  '@oxc-resolver/',
+  '@oxc-transform/',
+  '@oxfmt/',
+  '@oxlint-tsgolint/',
+];
+const OXC_PACKAGES = new Set([
+  'oxc-minify',
+  'oxc-parser',
+  'oxc-transform',
+  'oxfmt',
+  'oxlint',
+  'oxlint-tsgolint',
+]);
+const VITEST_DEPS = new Set(['tinybench']);
+
+// These packages should always use the highest version
+function syncedPackages(packageName: string): boolean {
+  if (OXC_PACKAGES.has(packageName) || VITEST_DEPS.has(packageName)) return true;
+  return OXC_PACKAGE_PREFIXES.some((prefix) => packageName.startsWith(prefix));
+}
+
 function mergeSemverVersions(
   v1: string,
   v2: string,
@@ -405,6 +432,16 @@ function mergeSemverVersions(
   const isExact2 = v2.startsWith('=');
   if (isExact1 || isExact2) {
     if (isExact1 && isExact2 && v1 !== v2) {
+      // For oxc-related packages, use the higher version
+      if (syncedPackages(packageName)) {
+        const ver1 = v1.slice(1); // Remove '=' prefix
+        const ver2 = v2.slice(1);
+        if (semver.valid(ver1) && semver.valid(ver2)) {
+          const higher = semver.gt(ver1, ver2) ? v1 : v2;
+          log(`Resolving ${packageName} version conflict: ${v1} vs ${v2} -> ${higher}`);
+          return higher;
+        }
+      }
       error(`Incompatible exact versions for ${packageName}: ${v1} vs ${v2}`);
     }
     return isExact1 ? v1 : v2;
@@ -442,6 +479,12 @@ function mergeSemverVersions(
 
   // Check if major versions are compatible
   if (major1 !== major2) {
+    // For synced packages, use the higher major version
+    if (syncedPackages(packageName)) {
+      const higher = major1 > major2 ? v1 : v2;
+      log(`Resolving ${packageName} major version conflict: ${v1} vs ${v2} -> ${higher}`);
+      return higher;
+    }
     error(
       `Incompatible semver ranges for ${packageName}: ${v1} (major: ${major1}) vs ${v2} (major: ${major2})`,
     );
@@ -624,7 +667,7 @@ export async function syncRemote() {
     semver = await import('semver');
   } catch {
     log('Dependencies not found, running pnpm install...');
-    execCommand('pnpm install', rootDir);
+    execCommand('pnpm install --no-frozen-lockfile', rootDir);
     log('Retrying imports...');
     const yaml = await import('@std/yaml');
     parseYaml = yaml.parse;
@@ -668,7 +711,7 @@ export async function syncRemote() {
 
   log('✓ pnpm-workspace.yaml updated successfully!');
 
-  execCommand('pnpm install', rootDir);
+  execCommand('pnpm install --no-frozen-lockfile', rootDir);
 
   // Merge package.json exports
   log('Merging package.json exports...');
