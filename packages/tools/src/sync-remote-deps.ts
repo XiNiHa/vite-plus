@@ -15,17 +15,17 @@ interface PnpmWorkspace {
   peerDependencyRules?: {
     allowedVersions?: Record<string, string>;
   };
-  packageExtensions?: Record<string, any>;
+  packageExtensions?: Record<string, unknown>;
   overrides?: Record<string, string>;
   ignoreScripts?: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface PackageJson {
   name?: string;
   version?: string;
-  exports?: Record<string, any>;
-  [key: string]: any;
+  exports?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 type ExportValue = string | { [condition: string]: string | ExportValue } | null;
@@ -43,6 +43,11 @@ function error(message: string): never {
   process.exit(1);
 }
 
+const getMajor = (range: string): number | null => {
+  const match = range.match(/(\d+)\./);
+  return match ? parseInt(match[1], 10) : null;
+};
+
 function execCommand(command: string, cwd?: string): string {
   try {
     return execSync(command, {
@@ -50,8 +55,11 @@ function execCommand(command: string, cwd?: string): string {
       encoding: 'utf-8',
       stdio: 'pipe',
     }).trim();
-  } catch (err: any) {
-    throw new Error(`Failed to execute: ${command}\n${err.message}`);
+  } catch (error) {
+    throw new Error(
+      `Failed to execute: ${command}\n${error instanceof Error ? error.message : error}`,
+      { cause: error },
+    );
   }
 }
 
@@ -112,8 +120,10 @@ function cloneOrResetRepo(repoUrl: string, dir: string, branch: string = 'main',
           log(`${dir} reset to latest ${branch}`);
         }
       }
-    } catch (err: any) {
-      log(`Failed to reset ${dir} (${err.message}), removing and re-cloning...`);
+    } catch (error) {
+      log(
+        `Failed to reset ${dir} (${error instanceof Error ? error.message : error}), removing and re-cloning...`,
+      );
       rmSync(dir, { recursive: true, force: true });
       cloneRepo(repoUrl, dir, branch, hash);
     }
@@ -134,10 +144,7 @@ function cloneRepo(repoUrl: string, dir: string, branch: string, hash?: string) 
   }
 }
 
-function transformRolldownExport(
-  exportPath: string,
-  exportValue: ExportValue,
-): [string, ExportValue] {
+function transformRolldownExport(exportPath: string, exportValue: unknown): [string, ExportValue] {
   // Skip package.json
   if (exportPath === './package.json') {
     return ['', null];
@@ -147,7 +154,7 @@ function transformRolldownExport(
   const newExportPath = exportPath === '.' ? './rolldown' : `./rolldown${exportPath.slice(1)}`;
 
   // Transform export value
-  const transformValue = (value: ExportValue): ExportValue => {
+  const transformValue = (value: unknown): ExportValue => {
     if (typeof value === 'string') {
       // Skip 'dev' condition paths that point to src
       if (value.startsWith('./src/')) {
@@ -158,20 +165,22 @@ function transformRolldownExport(
     }
 
     if (value && typeof value === 'object') {
-      const result: Record<string, any> = {};
+      const result: Record<string, unknown> = {};
       for (const [key, val] of Object.entries(value)) {
         // Skip 'dev' condition
-        if (key === 'dev') continue;
+        if (key === 'dev') {
+          continue;
+        }
 
         const transformed = transformValue(val);
         if (transformed !== null) {
           result[key] = transformed;
         }
       }
-      return Object.keys(result).length > 0 ? result : null;
+      return Object.keys(result).length > 0 ? (result as ExportValue) : null;
     }
 
-    return value;
+    return value as ExportValue;
   };
 
   const newValue = transformValue(exportValue);
@@ -217,7 +226,7 @@ function transformRolldownExport(
 
 function transformPluginutilsExport(
   exportPath: string,
-  exportValue: ExportValue,
+  exportValue: unknown,
 ): [string, ExportValue] {
   // Skip package.json
   if (exportPath === './package.json') {
@@ -229,7 +238,7 @@ function transformPluginutilsExport(
     exportPath === '.' ? './rolldown/pluginutils' : `./rolldown/pluginutils${exportPath.slice(1)}`;
 
   // Transform paths
-  const transformValue = (value: ExportValue): ExportValue => {
+  const transformValue = (value: unknown): ExportValue => {
     if (typeof value === 'string') {
       if (value.startsWith('./src/')) {
         return null;
@@ -238,18 +247,20 @@ function transformPluginutilsExport(
     }
 
     if (value && typeof value === 'object') {
-      const result: Record<string, any> = {};
+      const result: Record<string, unknown> = {};
       for (const [key, val] of Object.entries(value)) {
-        if (key === 'dev') continue;
+        if (key === 'dev') {
+          continue;
+        }
         const transformed = transformValue(val);
         if (transformed !== null) {
           result[key] = transformed;
         }
       }
-      return Object.keys(result).length > 0 ? result : null;
+      return Object.keys(result).length > 0 ? (result as ExportValue) : null;
     }
 
-    return value;
+    return value as ExportValue;
   };
 
   const newValue = transformValue(exportValue);
@@ -283,7 +294,7 @@ function transformPluginutilsExport(
   return [newExportPath, newValue];
 }
 
-function transformViteExport(exportPath: string, exportValue: ExportValue): [string, ExportValue] {
+function transformViteExport(exportPath: string, exportValue: unknown): [string, ExportValue] {
   // Skip package.json
   if (exportPath === './package.json') {
     return ['', null];
@@ -293,7 +304,7 @@ function transformViteExport(exportPath: string, exportValue: ExportValue): [str
   const newExportPath = exportPath;
 
   // Transform paths in values
-  const transformValue = (value: ExportValue): ExportValue => {
+  const transformValue = (value: unknown): ExportValue => {
     if (typeof value === 'string') {
       // Transform types paths
       if (value.startsWith('./types/')) {
@@ -306,17 +317,17 @@ function transformViteExport(exportPath: string, exportValue: ExportValue): [str
     }
 
     if (value && typeof value === 'object') {
-      const result: Record<string, any> = {};
+      const result: Record<string, unknown> = {};
       for (const [key, val] of Object.entries(value)) {
         const transformed = transformValue(val);
         if (transformed !== null) {
           result[key] = transformed;
         }
       }
-      return Object.keys(result).length > 0 ? result : null;
+      return Object.keys(result).length > 0 ? (result as ExportValue) : null;
     }
 
-    return value;
+    return value as ExportValue;
   };
 
   const newValue = transformValue(exportValue);
@@ -340,8 +351,8 @@ function mergePackageExports(
   rolldownPkg: PackageJson,
   rolldownVitePkg: PackageJson,
   pluginutilsPkg: PackageJson,
-): Record<string, any> {
-  const result: Record<string, any> = {};
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
 
   if (corePkg.exports) {
     for (const [path, value] of Object.entries(corePkg.exports)) {
@@ -381,13 +392,13 @@ function mergePackageExports(
 
   // Sort exports by key
   return Object.keys(result)
-    .sort()
+    .toSorted()
     .reduce(
       (sorted, key) => {
         sorted[key] = result[key];
         return sorted;
       },
-      {} as Record<string, any>,
+      {} as Record<string, unknown>,
     );
 }
 
@@ -414,7 +425,9 @@ const VITEST_DEPS = new Set(['tinybench']);
 
 // These packages should always use the highest version
 function syncedPackages(packageName: string): boolean {
-  if (OXC_PACKAGES.has(packageName) || VITEST_DEPS.has(packageName)) return true;
+  if (OXC_PACKAGES.has(packageName) || VITEST_DEPS.has(packageName)) {
+    return true;
+  }
   return OXC_PACKAGE_PREFIXES.some((prefix) => packageName.startsWith(prefix));
 }
 
@@ -425,7 +438,9 @@ function mergeSemverVersions(
   semver: typeof import('semver'),
 ): string {
   // Handle special cases
-  if (v1 === v2) return v1;
+  if (v1 === v2) {
+    return v1;
+  }
 
   // Handle exact version specifiers (=)
   const isExact1 = v1.startsWith('=');
@@ -447,15 +462,16 @@ function mergeSemverVersions(
     return isExact1 ? v1 : v2;
   }
 
-  // Handle npm: prefix
   if (v1.startsWith('npm:') || v2.startsWith('npm:')) {
-    // If one has npm: prefix, prefer the non-npm version or return the first one
-    if (!v1.startsWith('npm:')) return v1;
-    if (!v2.startsWith('npm:')) return v2;
+    if (!v1.startsWith('npm:')) {
+      return v1;
+    }
+    if (!v2.startsWith('npm:')) {
+      return v2;
+    }
     return v1;
   }
 
-  // Parse version ranges
   const range1 = semver.validRange(v1);
   const range2 = semver.validRange(v2);
 
@@ -463,12 +479,6 @@ function mergeSemverVersions(
     log(`Warning: Could not parse semver for ${packageName}: ${v1}, ${v2}. Using ${v1}`);
     return v1;
   }
-
-  // Get the major versions from the ranges
-  const getMajor = (range: string): number | null => {
-    const match = range.match(/(\d+)\./);
-    return match ? parseInt(match[1], 10) : null;
-  };
 
   const major1 = getMajor(v1);
   const major2 = getMajor(v2);
@@ -552,7 +562,7 @@ function mergePnpmWorkspaces(
 
   // Sort catalog keys alphabetically
   result.catalog = Object.keys(catalog)
-    .sort()
+    .toSorted()
     .reduce(
       (sorted, key) => {
         sorted[key] = catalog[key];

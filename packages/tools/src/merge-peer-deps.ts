@@ -7,7 +7,7 @@ interface PackageJson {
   name?: string;
   peerDependencies?: Record<string, string>;
   peerDependenciesMeta?: Record<string, { optional?: boolean }>;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 function log(message: string) {
@@ -19,9 +19,16 @@ function error(message: string): never {
   process.exit(1);
 }
 
+const getMajor = (range: string): number | null => {
+  const match = range.match(/(\d+)\./);
+  return match ? parseInt(match[1], 10) : null;
+};
+
 function mergeSemverVersions(v1: string, v2: string, packageName: string): string {
   // Handle special cases
-  if (v1 === v2) return v1;
+  if (v1 === v2) {
+    return v1;
+  }
 
   // Handle exact version specifiers (=)
   const isExact1 = v1.startsWith('=');
@@ -36,26 +43,37 @@ function mergeSemverVersions(v1: string, v2: string, packageName: string): strin
   // Handle npm: prefix
   if (v1.startsWith('npm:') || v2.startsWith('npm:')) {
     // If one has npm: prefix, prefer the non-npm version or return the first one
-    if (!v1.startsWith('npm:')) return v1;
-    if (!v2.startsWith('npm:')) return v2;
+    if (!v1.startsWith('npm:')) {
+      return v1;
+    }
+    if (!v2.startsWith('npm:')) {
+      return v2;
+    }
     return v1;
   }
 
   // Handle workspace: prefix
   if (v1.startsWith('workspace:') || v2.startsWith('workspace:')) {
-    if (v1.startsWith('workspace:')) return v1;
-    if (v2.startsWith('workspace:')) return v2;
+    if (v1.startsWith('workspace:')) {
+      return v1;
+    }
+    if (v2.startsWith('workspace:')) {
+      return v2;
+    }
     return v1;
   }
 
   // Handle wildcards
   if (v1 === '*' || v2 === '*') {
     // Prefer specific version over wildcard
-    if (v1 === '*') return v2;
-    if (v2 === '*') return v1;
+    if (v1 === '*') {
+      return v2;
+    }
+    if (v2 === '*') {
+      return v1;
+    }
   }
 
-  // Parse version ranges
   const range1 = semver.validRange(v1);
   const range2 = semver.validRange(v2);
 
@@ -63,12 +81,6 @@ function mergeSemverVersions(v1: string, v2: string, packageName: string): strin
     log(`Warning: Could not parse semver for ${packageName}: ${v1}, ${v2}. Using ${v1}`);
     return v1;
   }
-
-  // Get the major versions from the ranges
-  const getMajor = (range: string): number | null => {
-    const match = range.match(/(\d+)\./);
-    return match ? parseInt(match[1], 10) : null;
-  };
 
   const major1 = getMajor(v1);
   const major2 = getMajor(v2);
@@ -104,7 +116,9 @@ function mergePeerDependencies(packages: PackageJson[]): Record<string, string> 
   const result: Record<string, string> = {};
 
   for (const pkg of packages) {
-    if (!pkg.peerDependencies) continue;
+    if (!pkg.peerDependencies) {
+      continue;
+    }
 
     for (const [dep, version] of Object.entries(pkg.peerDependencies)) {
       if (result[dep]) {
@@ -118,7 +132,7 @@ function mergePeerDependencies(packages: PackageJson[]): Record<string, string> 
 
   // Sort alphabetically
   return Object.keys(result)
-    .sort()
+    .toSorted()
     .reduce(
       (sorted, key) => {
         sorted[key] = result[key];
@@ -134,7 +148,9 @@ function mergePeerDependenciesMeta(
   const result: Record<string, { optional?: boolean }> = {};
 
   for (const pkg of packages) {
-    if (!pkg.peerDependenciesMeta) continue;
+    if (!pkg.peerDependenciesMeta) {
+      continue;
+    }
 
     for (const [dep, meta] of Object.entries(pkg.peerDependenciesMeta)) {
       if (!result[dep]) {
@@ -150,7 +166,7 @@ function mergePeerDependenciesMeta(
 
   // Sort alphabetically
   return Object.keys(result)
-    .sort()
+    .toSorted()
     .reduce(
       (sorted, key) => {
         sorted[key] = result[key];

@@ -2,8 +2,16 @@ import { defineConfig } from 'vite-plus';
 
 export default defineConfig({
   lint: {
+    plugins: ['unicorn', 'typescript', 'oxc'],
+    categories: {
+      correctness: 'error',
+      perf: 'error',
+      suspicious: 'error',
+    },
     rules: {
+      'eslint/no-await-in-loop': 'off',
       'no-console': ['error', { allow: ['error'] }],
+      curly: 'error',
     },
     overrides: [
       {
@@ -18,6 +26,13 @@ export default defineConfig({
         ],
         rules: {
           'no-console': 'off',
+        },
+      },
+      {
+        files: ['packages/cli/src/oxlint-config.ts'],
+        rules: {
+          'typescript/no-explicit-any': 'off',
+          'typescript/no-extraneous-class': 'off',
         },
       },
     ],
