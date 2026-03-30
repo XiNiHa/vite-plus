@@ -551,18 +551,18 @@ impl CommandHandler for VitePlusCommandHandler {
         &mut self,
         command: &mut ScriptCommand,
     ) -> anyhow::Result<HandledCommand> {
-        // Intercept both "vp" and "vite" commands in task scripts.
-        // "vp" is the conventional alias used in vite-plus task configs.
-        // "vite" must also be intercepted so that `vite test`, `vite build`, etc.
-        // in task scripts are synthesized in-session rather than spawning a new CLI process.
+        // Intercept "vp" and "vpr" commands in task scripts so that `vp test`, `vp build`,
+        // `vpr build`, etc. are synthesized in-session rather than spawning a new CLI process.
         let program = command.program.as_str();
-        if program != "vp" && program != "vite" {
+        if program != "vp" && program != "vpr" {
             return Ok(HandledCommand::Verbatim);
         }
-        // Parse "vp <args>" using CLIArgs — always use "vp" as the program name
-        // so clap shows "Usage: vp ..." even if the original command was "vite ..."
+        // "vpr <args>" is shorthand for "vp run <args>", so prepend "run" for parsing.
+        let is_vpr = program == "vpr";
         let cli_args = match CLIArgs::try_parse_from(
-            iter::once("vp").chain(command.args.iter().map(Str::as_str)),
+            iter::once("vp")
+                .chain(is_vpr.then_some("run"))
+                .chain(command.args.iter().map(Str::as_str)),
         ) {
             Ok(args) => args,
             Err(err) if err.kind() == ErrorKind::InvalidSubcommand => {
